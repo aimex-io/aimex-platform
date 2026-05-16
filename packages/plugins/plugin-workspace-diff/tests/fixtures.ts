@@ -49,6 +49,7 @@ export function diffResponse(overrides: Partial<WorkspaceDiffResponse> = {}): Wo
     companyId: "22222222-2222-4222-8222-222222222222",
     view: "working-tree",
     baseRef: null,
+    defaultBaseRef: null,
     headSha: null,
     includeUntracked: true,
     paths: [],

@@ -119,6 +119,7 @@ export const workspaceDiffResponseSchema = z.object({
   companyId: z.string(),
   view: workspaceDiffViewSchema,
   baseRef: z.string().nullable(),
+  defaultBaseRef: z.string().nullable(),
   headSha: z.string().nullable(),
   includeUntracked: z.boolean(),
   paths: z.array(z.string()),

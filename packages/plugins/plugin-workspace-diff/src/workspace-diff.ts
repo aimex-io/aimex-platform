@@ -676,6 +676,7 @@ export function workspaceDiffService() {
         companyId: workspace.companyId,
         view: query.view,
         baseRef,
+        defaultBaseRef: workspace.baseRef,
         headSha: await resolveHeadSha(cwd),
         includeUntracked: query.includeUntracked,
         paths,

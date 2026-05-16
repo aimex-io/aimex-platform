@@ -8,6 +8,21 @@ function readString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readOptionalString(value: unknown): string | null {
+  const trimmed = readString(value);
+  return trimmed || null;
+}
+
+export function resolveDefaultBaseRef(input: {
+  workspaceBaseRef?: unknown;
+  projectWorkspaceDefaultRef?: unknown;
+  projectWorkspaceRepoRef?: unknown;
+}): string | null {
+  return readOptionalString(input.workspaceBaseRef)
+    ?? readOptionalString(input.projectWorkspaceDefaultRef)
+    ?? readOptionalString(input.projectWorkspaceRepoRef);
+}
+
 const plugin = definePlugin({
   async setup(ctx) {
     ctx.logger.info(`${PLUGIN_NAME} plugin setup`);
@@ -34,7 +49,10 @@ const plugin = definePlugin({
           id: workspace.id,
           companyId,
           cwd: workspace.path,
-          baseRef: workspace.defaultRef ?? workspace.repoRef ?? null,
+          baseRef: resolveDefaultBaseRef({
+            projectWorkspaceDefaultRef: workspace.defaultRef,
+            projectWorkspaceRepoRef: workspace.repoRef,
+          }),
         }, workspaceDiffQuerySchema.parse(params));
       }
 
@@ -42,7 +60,25 @@ const plugin = definePlugin({
       if (!workspace) {
         throw new Error("Workspace not found");
       }
-      return workspaceDiff.getDiff(workspace, workspaceDiffQuerySchema.parse(params));
+      let projectWorkspaceDefaultBaseRef: string | null = null;
+      if (!readOptionalString(workspace.baseRef) && workspace.projectWorkspaceId) {
+        const workspaces = await ctx.projects.listWorkspaces(workspace.projectId, companyId);
+        const projectWorkspace = workspaces.find((candidate) => candidate.id === workspace.projectWorkspaceId);
+        projectWorkspaceDefaultBaseRef = projectWorkspace
+          ? resolveDefaultBaseRef({
+            projectWorkspaceDefaultRef: projectWorkspace.defaultRef,
+            projectWorkspaceRepoRef: projectWorkspace.repoRef,
+          })
+          : null;
+      }
+
+      return workspaceDiff.getDiff({
+        ...workspace,
+        baseRef: resolveDefaultBaseRef({
+          workspaceBaseRef: workspace.baseRef,
+          projectWorkspaceDefaultRef: projectWorkspaceDefaultBaseRef,
+        }),
+      }, workspaceDiffQuerySchema.parse(params));
     });
   },
 

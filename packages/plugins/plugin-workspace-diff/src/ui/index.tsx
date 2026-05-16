@@ -3,7 +3,7 @@ import { usePluginData, usePluginToast } from "@paperclipai/plugin-sdk/ui";
 import { DIFFS_TAG_NAME, getSingularPatch } from "@pierre/diffs";
 import type { PatchDiffProps } from "@pierre/diffs/react";
 import { useFileDiffInstance } from "@pierre/diffs/react";
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   diffSummary,
   fileName,
@@ -20,6 +20,37 @@ import type { WorkspaceDiffResponse } from "../contracts.js";
 type WorkspaceDiffData = WorkspaceDiffResponse;
 type WorkspacePatchDiffOptions = PatchDiffProps<undefined>["options"];
 type DiffViewMode = "working-tree" | "head";
+
+type LucideIconProps = { size?: number };
+
+function makeLucideIcon(paths: ReactNode) {
+  return function LucideIcon({ size = 16 }: LucideIconProps) {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ width: size, height: size, display: "block" }}
+      >
+        {paths}
+      </svg>
+    );
+  };
+}
+
+// Plugin bundles cannot import host-only lucide-react; this mirrors lucide RefreshCw.
+const RefreshCwIcon = makeLucideIcon(
+  <>
+    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+    <path d="M21 3v5h-5" />
+    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+    <path d="M8 16H3v5" />
+  </>,
+);
 
 function readInitialView(): DiffViewMode {
   if (typeof window === "undefined") return "working-tree";
@@ -314,6 +345,7 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
   const [mode, setMode] = useState<DiffRenderMode>("split");
   const [view, setView] = useState<DiffViewMode>(() => readInitialView());
   const [baseRef, setBaseRef] = useState(() => readInitialBaseRef());
+  const baseRefTouchedRef = useRef(Boolean(baseRef.trim()));
   const [includeUntracked, setIncludeUntracked] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -383,6 +415,12 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
   }, [syncSelectedPathFromScroll]);
 
   useEffect(() => {
+    const defaultBaseRef = data?.defaultBaseRef?.trim();
+    if (!defaultBaseRef || baseRef.trim() || baseRefTouchedRef.current) return;
+    setBaseRef(defaultBaseRef);
+  }, [baseRef, data?.defaultBaseRef]);
+
+  useEffect(() => {
     if (files.length === 0) {
       setExpandedFiles(new Set());
       setSelectedPath(null);
@@ -450,7 +488,10 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
               key="base-ref"
               className="h-8 w-40 rounded-md border border-border bg-background px-2.5 font-mono text-xs outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/40"
               value={baseRef}
-              onChange={(event) => setBaseRef(event.target.value)}
+              onChange={(event) => {
+                baseRefTouchedRef.current = true;
+                setBaseRef(event.target.value);
+              }}
               placeholder="origin/master"
               aria-label="Base ref"
             />
@@ -465,8 +506,15 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
               {includeUntracked ? "Untracked shown" : "Show untracked"}
             </button>
           ) : null}
-          <button key="refresh" type="button" className={buttonClass(false)} onClick={() => refresh()}>
-            Refresh
+          <button
+            key="refresh"
+            type="button"
+            className={iconButtonClass(false)}
+            onClick={() => refresh()}
+            title="Refresh changes"
+            aria-label="Refresh changes"
+          >
+            <RefreshCwIcon />
           </button>
         </div>
       </div>

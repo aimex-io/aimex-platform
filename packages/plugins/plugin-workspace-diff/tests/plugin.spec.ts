@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
 import manifest from "../src/manifest.js";
-import plugin from "../src/worker.js";
+import plugin, { resolveDefaultBaseRef } from "../src/worker.js";
 
 const execFileAsync = promisify(execFile);
 const tempRoots: string[] = [];
@@ -143,6 +143,85 @@ describe("workspace diff plugin", () => {
 
     expect(result).toMatchObject({
       baseRef: "main",
+      defaultBaseRef: "main",
+      stats: { fileCount: 1 },
+      files: [expect.objectContaining({ path: "src/app.ts" })],
+    });
+  });
+
+  it("resolves the default base ref from workspace and project workspace metadata", () => {
+    expect(resolveDefaultBaseRef({
+      workspaceBaseRef: " release/main ",
+      projectWorkspaceDefaultRef: "origin/main",
+      projectWorkspaceRepoRef: "feature",
+    })).toBe("release/main");
+    expect(resolveDefaultBaseRef({
+      workspaceBaseRef: null,
+      projectWorkspaceDefaultRef: " origin/main ",
+      projectWorkspaceRepoRef: "feature",
+    })).toBe("origin/main");
+    expect(resolveDefaultBaseRef({
+      workspaceBaseRef: "",
+      projectWorkspaceDefaultRef: null,
+      projectWorkspaceRepoRef: " feature ",
+    })).toBe("feature");
+    expect(resolveDefaultBaseRef({
+      workspaceBaseRef: "",
+      projectWorkspaceDefaultRef: null,
+      projectWorkspaceRepoRef: "",
+    })).toBeNull();
+  });
+
+  it("uses project workspace default refs for execution workspace head diffs", async () => {
+    const root = await createGitWorkspace();
+    await git(root, ["checkout", "-b", "feature"]);
+    await fs.writeFile(path.join(root, "src/app.ts"), "export const value = 4;\n");
+    await git(root, ["add", "src/app.ts"]);
+    await git(root, ["commit", "-m", "feature change"]);
+    const harness = createTestHarness({ manifest });
+    harness.seed({
+      executionWorkspaces: [{
+        id: "workspace-1",
+        companyId: "company-1",
+        projectId: "project-1",
+        projectWorkspaceId: "project-workspace-1",
+        path: root,
+        cwd: root,
+        repoUrl: null,
+        baseRef: null,
+        branchName: "feature",
+        providerType: "git_worktree",
+        providerMetadata: null,
+      }],
+    });
+    harness.ctx.projects.listWorkspaces = async (projectId, companyId) => {
+      expect(projectId).toBe("project-1");
+      expect(companyId).toBe("company-1");
+      return [{
+        id: "project-workspace-1",
+        projectId: "project-1",
+        name: "Primary",
+        path: root,
+        repoUrl: null,
+        repoRef: "feature",
+        defaultRef: "main",
+        isPrimary: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }];
+    };
+    await plugin.definition.setup(harness.ctx);
+
+    const result = await harness.getData("workspace-diff", {
+      workspaceId: "workspace-1",
+      companyId: "company-1",
+      view: "head",
+      includeUntracked: false,
+    });
+
+    expect(result).toMatchObject({
+      baseRef: "main",
+      defaultBaseRef: "main",
       stats: { fileCount: 1 },
       files: [expect.objectContaining({ path: "src/app.ts" })],
     });
