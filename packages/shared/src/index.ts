@@ -550,6 +550,8 @@ export type {
   CompanyPortabilityImportResult,
   CompanyPortabilityExportRequest,
   EnvBinding,
+  EnvPlainBinding,
+  EnvSecretRefBinding,
   AgentEnvConfig,
   CompanySecret,
   CompanySecretProviderConfig,
