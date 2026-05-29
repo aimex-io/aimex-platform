@@ -214,11 +214,11 @@ describe("execution workspace policy helpers", () => {
     });
   });
 
-  it("ignores issue/project env promotion for null-default agents even when no workspace is being reused", () => {
-    // A null-default (local-only) agent must not silently inherit an env that
-    // could have been auto-promoted from a different assignee. With no
-    // reused workspace there is no conflict to surface, but the resolved env
-    // is still the local default rather than the issue setting.
+  it("honors an explicit issue env override for null-default agents when no workspace is being reused", () => {
+    // Operator explicitly chose an env on this issue via PATCH (see the
+    // issues-service contract at issues-service.test.ts:1924). For null-default
+    // agents, this is a deliberate choice — only inherited issue env (which
+    // matches a reused workspace env) should be discarded.
     expect(
       resolveExecutionWorkspaceEnvironmentId({
         projectPolicy: { enabled: true, environmentId: "project-env" },
@@ -228,9 +228,33 @@ describe("execution workspace policy helpers", () => {
         defaultEnvironmentId: "local-env",
       }),
     ).toEqual({
-      environmentId: "local-env",
-      source: "default",
+      environmentId: "issue-env",
+      source: "issue",
       conflict: null,
+    });
+  });
+
+  it("honors an explicit issue env override for null-default agents even against a disagreeing reused workspace", () => {
+    // Operator picked sandbox-env explicitly while the previously-realized
+    // workspace was on local-env. The mismatch is genuine — surface a conflict
+    // so the heartbeat forces a fresh realization on the operator's chosen env.
+    expect(
+      resolveExecutionWorkspaceEnvironmentId({
+        projectPolicy: { enabled: true, environmentId: null },
+        issueSettings: { environmentId: "sandbox-env", mode: "shared_workspace" },
+        workspaceConfig: { environmentId: "local-env" },
+        agentDefaultEnvironmentId: null,
+        defaultEnvironmentId: "local-env",
+      }),
+    ).toEqual({
+      environmentId: "sandbox-env",
+      source: "issue",
+      conflict: {
+        reason: "reused_workspace_environment_mismatch",
+        workspaceEnvironmentId: "local-env",
+        assigneeIntendedEnvironmentId: "sandbox-env",
+        assigneeIntendedSource: "issue",
+      },
     });
   });
 

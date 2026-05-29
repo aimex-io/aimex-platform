@@ -771,11 +771,14 @@ export function issueThreadInteractionService(db: Db) {
     ): Promise<ResolvedInteractionResult> => {
       const data = acceptIssueThreadInteractionSchema.parse(input);
       const current = await getPendingInteractionForResolution({ issue, interactionId });
-      await assertIssueWorkspaceFinalizedForAccept({ db, issue });
       switch (current.kind) {
         case "suggest_tasks":
+          // Accepting suggest_tasks only creates follow-up issues; it does not
+          // approve code state or move the source workspace forward, so the
+          // workspace_finalize gate (PAPA-440) does not apply here.
           return issueThreadInteractionService(db).acceptSuggestedTasks(issue, interactionId, data, actor);
         case "request_confirmation": {
+          await assertIssueWorkspaceFinalizedForAccept({ db, issue });
           const accepted = await acceptRequestConfirmation({
             issue,
             current,

@@ -1322,6 +1322,55 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
       });
     });
 
+    it("allows accept of suggest_tasks even when no successful workspace_finalize has landed", async () => {
+      // suggest_tasks acceptance only creates follow-up issues; it does not
+      // approve code state or move the source workspace forward, so the
+      // workspace_finalize gate (PAPA-440) must not apply here. Without this
+      // carve-out the board cannot triage suggested tasks on an issue whose
+      // latest workspace op is still worktree_prepare.
+      const { companyId, executionWorkspaceId, issueId, goalId } = await seedAcceptGateFixture();
+
+      await db.insert(workspaceOperations).values({
+        companyId,
+        executionWorkspaceId,
+        phase: "worktree_prepare",
+        status: "succeeded",
+        startedAt: new Date("2026-05-28T22:00:00.000Z"),
+      });
+
+      const created = await interactionsSvc.create({
+        id: issueId,
+        companyId,
+      }, {
+        kind: "suggest_tasks",
+        continuationPolicy: "wake_assignee",
+        payload: {
+          version: 1,
+          tasks: [
+            {
+              clientKey: "follow-up",
+              title: "Created from suggest_tasks accept under prepare-only workspace",
+            },
+          ],
+        },
+      }, {
+        userId: "local-board",
+      });
+
+      const accepted = await interactionsSvc.acceptInteraction(
+        { id: issueId, companyId, goalId, projectId: null },
+        created.id,
+        {},
+        { userId: "local-board" },
+      );
+
+      expect(accepted.interaction).toMatchObject({
+        id: created.id,
+        kind: "suggest_tasks",
+        status: "accepted",
+      });
+    });
+
     it("allows accept when the issue has no execution workspace attached", async () => {
       const { companyId, issueId } = await seedConfirmationIssue("No execution workspace accept");
 
