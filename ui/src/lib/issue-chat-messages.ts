@@ -10,6 +10,7 @@ import type {
 import type { Agent, IssueComment } from "@paperclipai/shared";
 import type { ActiveRunForIssue, LiveRunForIssue } from "../api/heartbeats";
 import { formatAssigneeUserLabel } from "./assignees";
+import { isOperatorInterruptedRun } from "./interrupt-handoff";
 import {
   buildIssueThreadInteractionSummary,
   type IssueThreadInteraction,
@@ -611,6 +612,9 @@ function runDurationLabel(run: {
     case "timed_out":
       return durationText ? `Timed out after ${durationText}` : "Run timed out";
     case "cancelled":
+      if (isOperatorInterruptedRun(run.resultJson)) {
+        return durationText ? `Interrupted by board after ${durationText}` : "Interrupted by board";
+      }
       if (stopReason === "paused") {
         return durationText ? `Paused by board after ${durationText}` : "Paused by board";
       }
@@ -639,6 +643,7 @@ function createHistoricalRunMessage(run: IssueChatLinkedRun, agentMap?: Map<stri
         runAgentId: run.agentId,
         runAgentName: agentName,
         runStatus: run.status,
+        runOperatorInterrupted: isOperatorInterruptedRun(run.resultJson),
       },
     },
   };
@@ -675,6 +680,7 @@ function createHistoricalTranscriptMessage(args: {
       runAgentId: run.agentId,
       runAgentName: agentName,
       runStatus: run.status,
+      runOperatorInterrupted: isOperatorInterruptedRun(run.resultJson),
       notices,
       waitingText,
       chainOfThoughtLabel: runDurationLabel(run),

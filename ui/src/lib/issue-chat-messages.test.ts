@@ -325,6 +325,39 @@ describe("buildIssueChatMessages", () => {
     });
   });
 
+  it("flags an operator-interrupted historical run so the timeline can read 'interrupted'", () => {
+    const messages = buildIssueChatMessages({
+      comments: [],
+      timelineEvents: [],
+      linkedRuns: [
+        {
+          runId: "run-int",
+          status: "cancelled",
+          agentId: "agent-1",
+          createdAt: new Date("2026-04-06T12:01:00.000Z"),
+          startedAt: new Date("2026-04-06T12:01:00.000Z"),
+          finishedAt: new Date("2026-04-06T12:02:00.000Z"),
+          resultJson: { operatorInterrupted: true, interruptionSource: "issue_comment_interrupt" },
+        },
+        {
+          runId: "run-plain",
+          status: "cancelled",
+          agentId: "agent-1",
+          createdAt: new Date("2026-04-06T12:03:00.000Z"),
+          startedAt: new Date("2026-04-06T12:03:00.000Z"),
+          finishedAt: new Date("2026-04-06T12:04:00.000Z"),
+          resultJson: null,
+        },
+      ],
+      liveRuns: [],
+    });
+
+    const interrupted = messages.find((message) => message.id === "run-assistant:run-int");
+    const plain = messages.find((message) => message.id === "run-assistant:run-plain");
+    expect(interrupted?.metadata?.custom).toMatchObject({ runOperatorInterrupted: true });
+    expect(plain?.metadata?.custom).toMatchObject({ runOperatorInterrupted: false });
+  });
+
   it("redacts deleted comment bodies while preserving tombstone metadata", () => {
     const messages = buildIssueChatMessages({
       comments: [
