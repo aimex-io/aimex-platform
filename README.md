@@ -1,3 +1,11 @@
+# Aimex Platform
+
+> Aimex Platform is a branded distribution of [Paperclip](https://github.com/paperclipai/paperclip) (MIT),
+> maintained by [aimex-io](https://github.com/aimex-io). See [UPSTREAM.md](UPSTREAM.md) for the sync policy.
+> All platform features are upstream Paperclip's work.
+
+---
+
 <p align="center">
   <img src="doc/assets/banner.jpg" alt="Paperclip is the app people use to manage AI agents for work." width="720" />
 </p>
